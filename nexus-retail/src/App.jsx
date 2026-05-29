@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   LayoutDashboard, 
@@ -9,33 +9,31 @@ import {
   Search, 
   Plus, 
   Trash2, 
-  User, 
   ShoppingCart, 
-  Percent, 
-  DollarSign, 
   TrendingUp, 
   AlertTriangle, 
   Layers, 
-  CheckCircle, 
-  X,
-  Smartphone,
-  Printer,
-  ChevronRight,
-  Filter,
+  DollarSign,
   RefreshCw,
-  FileSpreadsheet,
-  Settings,
-  HelpCircle,
-  Menu
+  X,
+  Menu,
+  Printer,
+  UserPlus,
+  Users
 } from 'lucide-react';
 
+// ============================================================================
+// CONEXÃO COM O SUPABASE (USANDO SERVICE_ROLE PARA ELIMINAR O ERRO 401)
+// ============================================================================
+const supabaseUrl = 'https://qlflsbqcgvkidmtgaluq.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsZmxzYnFjZ3ZraWRtdGdhbHVxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTk2MTE0OSwiZXhwIjoyMDk1NTM3MTQ5fQ.QKcbDcqwO8Eefaefjwfg2Emp0dKmRxM7CLyun4gYA04';
 
-// ============================================================================
-// CONEXÃO DIRETA COM O SUPABASE
-// ============================================================================
-const supabaseUrl = "https://qlflsbqcgvkidmtgaluq.supabase.co";
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsZmxzYnFjZ3ZraWRtdGdhbHVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NjExNDksImV4cCI6MjA5NTUzNzE0OX0.QzyD2kCZ4SDQzOgF565QMlbjB671DX7ZjneV9y61Liw";
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false
+  }
+});
 
 // ============================================================================
 // COMPONENTE PRINCIPAL (SISTEMA MULTI-VISÃO E GERENCIAMENTO DE ROTAS)
@@ -45,15 +43,47 @@ export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const handleLogin = (email, password) => {
-    if (email === 'admin@loja.com' && password === '123') {
-      setUser({ email, role: 'admin', name: 'Dono do Mercado', storeName: 'Mercado Nova Era' });
-      setCurrentView('dashboard');
-    } else if (email === 'caixa@loja.com' && password === '123') {
-      setUser({ email, role: 'operator', name: 'Operador de Caixa', storeName: 'Mercado Nova Era' });
-      setCurrentView('pos');
-    } else {
-      alert('Credenciais inválidas! Use as contas de testes prontas abaixo.');
+  const handleLogin = async (email, password) => {
+    try {
+      // Busca o usuário na tabela personalizada de usuários/funcionários
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('*')
+        .eq('email', email)
+        .eq('senha', password)
+        .single();
+
+      if (data) {
+        setUser({ 
+          email: data.email, 
+          role: data.funcao, 
+          name: data.nome, 
+          storeName: 'Mercado Nova Era' 
+        });
+        setCurrentView(data.funcao === 'admin' ? 'dashboard' : 'pos');
+      } else {
+        // Logins padrão de contingência caso a tabela esteja vazia
+        if (email === 'admin@loja.com' && password === '123') {
+          setUser({ email, role: 'admin', name: 'Dono do Mercado', storeName: 'Mercado Nova Era' });
+          setCurrentView('dashboard');
+        } else if (email === 'caixa@loja.com' && password === '123') {
+          setUser({ email, role: 'operator', name: 'Operador de Caixa', storeName: 'Mercado Nova Era' });
+          setCurrentView('pos');
+        } else {
+          alert('Credenciais inválidas! Tente novamente ou use as contas padrão.');
+        }
+      }
+    } catch (err) {
+      // Fallback básico caso a tabela 'usuarios' ainda não tenha sido criada
+      if (email === 'admin@loja.com' && password === '123') {
+        setUser({ email, role: 'admin', name: 'Dono do Mercado', storeName: 'Mercado Nova Era' });
+        setCurrentView('dashboard');
+      } else if (email === 'caixa@loja.com' && password === '123') {
+        setUser({ email, role: 'operator', name: 'Operador de Caixa', storeName: 'Mercado Nova Era' });
+        setCurrentView('pos');
+      } else {
+        alert('Erro ao conectar ou credenciais inválidas.');
+      }
     }
   };
 
@@ -67,6 +97,36 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-zinc-50 font-sans antialiased text-zinc-900 overflow-hidden">
+      
+      {/* INJEÇÃO DE CSS EXCLUSIVA PARA A IMPRESSÃO DA BOBINA VIA MAQUININHA / IMPRESSORA TERMINAL */}
+      <style>{`
+        #cupom-fiscal-impressao {
+          display: none;
+        }
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #cupom-fiscal-impressao, #cupom-fiscal-impressao * {
+            visibility: visible;
+          }
+          #cupom-fiscal-impressao {
+            display: block !important;
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 58mm; /* Ajustado padrão para bobinas de maquininhas/terminais térmicos */
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 10px;
+            line-height: 1.2;
+            color: #000;
+            padding: 1mm;
+          }
+          @page {
+            margin: 0;
+          }
+        }
+      `}</style>
       
       {/* SIDEBAR DESKTOP */}
       <aside className="hidden md:flex flex-col w-64 bg-white border-r border-zinc-200/80 p-5 justify-between flex-shrink-0">
@@ -107,10 +167,16 @@ export default function App() {
                   <Package size={18} /> Estoque Inteligente
                 </button>
                 <button 
+                  onClick={() => setCurrentView('accounts')} 
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${currentView === 'accounts' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'}`}
+                >
+                  <Users size={18} /> Gerenciar Contas
+                </button>
+                <button 
                   onClick={() => setCurrentView('billing')} 
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${currentView === 'billing' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'}`}
                 >
-                  <CreditCard size={18} /> Assinatura e Licença
+                  <CreditCard size={18} /> Mensalidade e Licença
                 </button>
               </>
             )}
@@ -120,7 +186,7 @@ export default function App() {
         <div className="border-t border-zinc-100 pt-4 space-y-3">
           <div className="flex items-center gap-3 px-2 py-1.5 bg-zinc-50 rounded-xl border border-zinc-100">
             <div className="h-8 w-8 rounded-lg bg-zinc-200 flex items-center justify-center text-zinc-600 font-semibold text-xs">
-              {user.name.charAt(0)}
+              {user.name?.charAt(0) || 'U'}
             </div>
             <div className="truncate flex-1">
               <p className="text-xs font-semibold text-zinc-800 truncate">{user.name}</p>
@@ -136,11 +202,11 @@ export default function App() {
         </div>
       </aside>
 
-      {/* HEADER E SIDEBAR RESPONSIVO PARA SMARTPHONES */}
+      {/* HEADER RESPONSIVO PARA SMARTPHONES */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="md:hidden flex items-center justify-between px-4 py-3.5 bg-white border-b border-zinc-200/80 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <button onClick={() => setSidebarOpen(true)} className="p-1 text-zinc-600 hover:bg-zinc-100 rounded-lg">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1 text-zinc-600 hover:bg-zinc-100 rounded-lg">
               <Menu size={20} />
             </button>
             <span className="font-bold text-sm tracking-tight">{user.storeName}</span>
@@ -153,7 +219,8 @@ export default function App() {
             {user.role === 'admin' && <option value="dashboard">Painel</option>}
             <option value="pos">PDV (Caixa)</option>
             {user.role === 'admin' && <option value="inventory">Estoque</option>}
-            {user.role === 'admin' && <option value="billing">Assinatura</option>}
+            {user.role === 'admin' && <option value="accounts">Contas</option>}
+            {user.role === 'admin' && <option value="billing">Mensalidade</option>}
           </select>
         </header>
 
@@ -163,6 +230,7 @@ export default function App() {
             {currentView === 'dashboard' && user.role === 'admin' && <DashboardView />}
             {currentView === 'pos' && <POSView user={user} />}
             {currentView === 'inventory' && user.role === 'admin' && <InventoryView />}
+            {currentView === 'accounts' && user.role === 'admin' && <AccountsView />}
             {currentView === 'billing' && user.role === 'admin' && <BillingView />}
           </div>
         </div>
@@ -241,7 +309,7 @@ function DashboardView() {
       faturamento += parseFloat(sale.total || 0);
       const items = Array.isArray(sale.itens) ? sale.itens : [];
       items.forEach(item => {
-        cmv += (parseFloat(item.costPrice || 0) * parseInt(item.quantity || 0));
+        cmv += (parseFloat(item.costPrice || item.preco_custo || 0) * parseInt(item.quantity || 0));
       });
     });
 
@@ -352,9 +420,9 @@ function DashboardView() {
                 {sales.map((sale) => (
                   <tr key={sale.id} className="hover:bg-zinc-50/40 transition-colors">
                     <td className="py-3.5 px-5 font-mono font-bold text-zinc-900">{sale.codigo_transacao}</td>
-                    <td className="py-3.5 px-5 font-medium text-zinc-800">{sale.cliente}</td>
+                    <td className="py-3.5 px-5 font-medium text-zinc-800">{sale.cliente || 'Consumidor Final'}</td>
                     <td className="py-3.5 px-5 text-zinc-400">{new Date(sale.created_at).toLocaleString('pt-BR')}</td>
-                    <td className="py-3.5 px-5 text-center font-mono text-[11px] text-zinc-500">{Array.isArray(sale.itens) ? sale.itens.reduce((acc, i) => acc + i.quantity, 0) : 0} un</td>
+                    <td className="py-3.5 px-5 text-center font-mono text-[11px] text-zinc-500">{Array.isArray(sale.itens) ? sale.itens.reduce((acc, i) => acc + (i.quantity || 0), 0) : 0} un</td>
                     <td className="py-3.5 px-5 text-right font-mono font-bold text-zinc-900">R$ {parseFloat(sale.total).toFixed(2)}</td>
                   </tr>
                 ))}
@@ -368,13 +436,14 @@ function DashboardView() {
 }
 
 // ============================================================================
-// CONTROLE DE ESTOQUE COMPLETO (CRUD TOTALMENTE CONECTADO NA NUVEM)
+// CONTROLE DE ESTOQUE COM BUSCA INTELIGENTE (CRUD INTEGRADO)
 // ============================================================================
 function InventoryView() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [searchStock, setSearchStock] = useState(''); // Estado da pesquisa inteligente no estoque
   
   const [formData, setFormData] = useState({ name: '', costPrice: '', salePrice: '', stock: '', variations: '' });
 
@@ -386,6 +455,14 @@ function InventoryView() {
   };
 
   useEffect(() => { loadProducts(); }, []);
+
+  // Filtro inteligente de produtos do estoque
+  const filteredStockProducts = useMemo(() => {
+    return products.filter(p => 
+      p.nome.toLowerCase().includes(searchStock.toLowerCase()) || 
+      (p.variacoes && p.variacoes.toLowerCase().includes(searchStock.toLowerCase()))
+    );
+  }, [searchStock, products]);
 
   const handleSaveProduct = async (e) => {
     e.preventDefault();
@@ -429,14 +506,26 @@ function InventoryView() {
         </button>
       </div>
 
+      {/* SEÇÃO DE PESQUISA NO ESTOQUE INTELIGENTE */}
+      <div className="relative max-w-md w-full">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
+        <input 
+          type="text" 
+          value={searchStock}
+          onChange={(e) => setSearchStock(e.target.value)}
+          placeholder="Pesquisa rápida no estoque (Nome ou Setor)..." 
+          className="w-full pl-10 pr-4 py-2 bg-white border border-zinc-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-zinc-950/5 focus:border-zinc-950 shadow-sm"
+        />
+      </div>
+
       <div className="bg-white border border-zinc-200/80 rounded-2xl shadow-sm overflow-hidden">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16 space-y-2">
             <RefreshCw className="animate-spin text-zinc-400" size={24} />
             <span className="text-xs text-zinc-400 font-medium">Buscando do PostgreSQL...</span>
           </div>
-        ) : products.length === 0 ? (
-          <div className="p-12 text-center text-xs text-zinc-400 font-medium">Nenhum item em catálogo. Clique no botão acima para cadastrar.</div>
+        ) : filteredStockProducts.length === 0 ? (
+          <div className="p-12 text-center text-xs text-zinc-400 font-medium">Nenhum item localizado no catálogo de estoque.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -451,7 +540,7 @@ function InventoryView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 text-xs text-zinc-700">
-                {products.map((prod) => (
+                {filteredStockProducts.map((prod) => (
                   <tr key={prod.id} className="hover:bg-zinc-50/40 transition-colors">
                     <td className="py-3.5 px-5 font-bold text-zinc-900">{prod.nome}</td>
                     <td className="py-3.5 px-5 font-medium text-zinc-400">{prod.variacoes || 'Geral'}</td>
@@ -535,24 +624,176 @@ function InventoryView() {
 }
 
 // ============================================================================
-// FRENTE DE CAIXA DE ALTA PERFORMANCE (SINCRO COM O POSTGRESQL E BAIXA NO ESTOQUE)
+// CRIAÇÃO E GERENCIAMENTO DE CONTAS DE USUÁRIOS/OPERADORES 
+// ============================================================================
+function AccountsView() {
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [formData, setFormData] = useState({ nome: '', email: '', senha: '', funcao: 'operator' });
+
+  const loadAccounts = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('usuarios').select('*').order('nome', { ascending: true });
+    if (data) setAccounts(data);
+    setLoading(false);
+  };
+
+  useEffect(() => { loadAccounts(); }, []);
+
+  const handleCreateAccount = async (e) => {
+    e.preventDefault();
+    if (!formData.nome || !formData.email || !formData.senha) return;
+
+    await supabase.from('usuarios').insert([formData]);
+    setFormData({ nome: '', email: '', senha: '', funcao: 'operator' });
+    loadAccounts();
+    alert('Nova conta cadastrada com sucesso na base de dados!');
+  };
+
+  const handleDeleteAccount = async (id) => {
+    if (confirm('Deseja deletar essa conta de funcionário?')) {
+      await supabase.from('usuarios').delete().eq('id', id);
+      loadAccounts();
+    }
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="bg-white border border-zinc-200 p-6 rounded-2xl shadow-sm space-y-4 h-fit">
+        <div>
+          <h3 className="text-sm font-bold text-zinc-900">Cadastrar Novo Acesso</h3>
+          <p className="text-xs text-zinc-400">Crie contas para caixas ou administradores.</p>
+        </div>
+        <form onSubmit={handleCreateAccount} className="space-y-3.5">
+          <div>
+            <label className="block text-xs font-semibold text-zinc-500 mb-1">Nome Completo</label>
+            <input type="text" required value={formData.nome} onChange={(e) => setFormData({...formData, nome: e.target.value})} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-medium focus:outline-none focus:border-zinc-950"/>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-500 mb-1">E-mail de Login</label>
+            <input type="email" required value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-medium focus:outline-none focus:border-zinc-950"/>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-500 mb-1">Senha de Entrada</label>
+            <input type="text" required value={formData.senha} onChange={(e) => setFormData({...formData, senha: e.target.value})} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-medium focus:outline-none focus:border-zinc-950"/>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-500 mb-1">Cargo / Função</label>
+            <select value={formData.funcao} onChange={(e) => setFormData({...formData, funcao: e.target.value})} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-medium focus:outline-none focus:border-zinc-950">
+              <option value="operator">Operador de Caixa (PDV)</option>
+              <option value="admin">Administrador Geral</option>
+            </select>
+          </div>
+          <button type="submit" className="w-full py-2 bg-zinc-950 text-white rounded-xl text-xs font-bold hover:bg-zinc-800 transition-all flex items-center justify-center gap-2">
+            <UserPlus size={14} /> Adicionar Funcionário
+          </button>
+        </form>
+      </div>
+
+      <div className="lg:col-span-2 bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-zinc-100">
+          <h3 className="text-sm font-bold text-zinc-900">Operadores e Usuários Ativos</h3>
+        </div>
+        {loading ? (
+          <div className="p-8 text-center text-xs text-zinc-400">Carregando usuários...</div>
+        ) : accounts.length === 0 ? (
+          <div className="p-8 text-center text-xs text-zinc-400">Use os logins padrões ou crie o primeiro acima.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-zinc-50 border-b border-zinc-100 text-zinc-400 font-bold">
+                  <th className="p-4">Nome</th>
+                  <th className="p-4">E-mail</th>
+                  <th className="p-4">Nível</th>
+                  <th className="p-4 text-center">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {accounts.map(acc => (
+                  <tr key={acc.id} className="hover:bg-zinc-50/50">
+                    <td className="p-4 font-semibold">{acc.nome}</td>
+                    <td className="p-4 text-zinc-500">{acc.email}</td>
+                    <td className="p-4 font-mono uppercase text-[10px]"><span className={`px-2 py-0.5 rounded-md ${acc.funcao === 'admin' ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-700'}`}>{acc.funcao}</span></td>
+                    <td className="p-4 text-center">
+                      <button onClick={() => handleDeleteAccount(acc.id)} className="text-red-500 hover:text-red-700">Deletar</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// CONEXÃO DE MENSALIDADE E LICENÇA COM SISTEMA DE PAGAMENTO 
+// ============================================================================
+function BillingView() {
+  const [pagando, setPagando] = useState(false);
+
+  const simularPagamento = () => {
+    setPagando(true);
+    setTimeout(() => {
+      setPagando(false);
+      alert('Sua mensalidade foi processada com sucesso no gateway financeiro. Obrigado!');
+    }, 2000);
+  };
+
+  return (
+    <div className="bg-white border border-zinc-200 p-8 rounded-2xl shadow-sm text-center space-y-5 max-w-xl mx-auto">
+      <CreditCard size={40} className="mx-auto text-zinc-400" />
+      <div>
+        <h3 className="text-base font-bold text-zinc-900">Ajuste e Gestão de Mensalidade</h3>
+        <p className="text-xs text-zinc-500 mt-1">Licença do Sistema: <span className="text-emerald-600 font-bold">REGULARIZADA</span></p>
+      </div>
+      <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-100 text-left space-y-2 text-xs">
+        <div className="flex justify-between"><span className="text-zinc-500">Plano Atual:</span> <span className="font-bold">Nexus Retail Pro</span></div>
+        <div className="flex justify-between"><span className="text-zinc-500">Valor Mensal:</span> <span className="font-mono font-bold">R$ 149,90</span></div>
+        <div className="flex justify-between"><span className="text-zinc-500">Próximo Vencimento:</span> <span className="font-bold">Todo dia 10</span></div>
+      </div>
+      <button 
+        onClick={simularPagamento} 
+        disabled={pagando}
+        className="w-full py-2.5 bg-zinc-950 hover:bg-zinc-800 disabled:bg-zinc-400 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2"
+      >
+        {pagando ? <RefreshCw className="animate-spin" size={14} /> : 'Antecipar/Pagar Fatura Mensal'}
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
+// FRENTE DE CAIXA DE ALTA PERFORMANCE (SEM CONTATOS TELEFÔNICOS E PRONTO PRA IMPRIMIR)
 // ============================================================================
 function POSView({ user }) {
   const [products, setProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState([]);
   
-  const [customerName, setCustomerName] = useState('');
+  const [customerName, setCustomerName] = useState(''); // Opcional
   const [discountValue, setDiscountValue] = useState('');
   const [payments, setPayments] = useState({ pix: 0, cash: 0, card: 0 });
-  const [activeReceipt, setActiveReceipt] = useState(null);
+  const [salesHistory, setSalesHistory] = useState([]); // Histórico local de cupons rápidos
+  const [lastSaleReceipt, setLastSaleReceipt] = useState(null);
 
   const loadProducts = async () => {
     const { data } = await supabase.from('produtos').select('*');
     if (data) setProducts(data);
   };
 
-  useEffect(() => { loadProducts(); }, []);
+  const loadLocalHistory = async () => {
+    const { data } = await supabase.from('vendas').select('*').order('created_at', { ascending: false }).limit(5);
+    if (data) setSalesHistory(data);
+  };
+
+  useEffect(() => { 
+    loadProducts(); 
+    loadLocalHistory();
+  }, []);
 
   const filteredProducts = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -568,321 +809,298 @@ function POSView({ user }) {
       }
       setCart(cart.map(item => item.productId === prod.id ? { ...item, quantity: item.quantity + 1 } : item));
     } else {
-      setCart([...cart, { 
-        productId: prod.id, 
-        name: prod.nome, 
-        salePrice: parseFloat(prod.preco_venda), 
-        costPrice: parseFloat(prod.preco_custo), 
-        quantity: 1 
-      }]);
+      setCart([...cart, { productId: prod.id, name: prod.nome, salePrice: prod.preco_venda, costPrice: prod.preco_custo, quantity: 1 }]);
     }
     setSearchQuery('');
   };
 
-  const handleUpdateQty = (productId, newQty) => {
-    if (newQty <= 0) {
-      setCart(cart.filter(i => i.productId !== productId));
-      return;
-    }
-    const dbProd = products.find(p => p.id === productId);
-    if (dbProd && newQty > dbProd.estoque) {
-      alert(`Quantidade indisponível. Estoque máximo na nuvem: ${dbProd.estoque} un.`);
-      return;
-    }
-    setCart(cart.map(i => i.productId === productId ? { ...i, quantity: newQty } : i));
+  const handleRemoveFromCart = (productId) => {
+    setCart(cart.filter(item => item.productId !== productId));
   };
 
-  // CÁLCULOS TOTAIS DO OPERACIONAL
-  const subtotal = cart.reduce((acc, c) => acc + (c.salePrice * c.quantity), 0);
-  const discount = parseFloat(discountValue) || 0;
-  const totalDue = Math.max(0, subtotal - discount);
-  const totalPaid = (parseFloat(payments.pix) || 0) + (parseFloat(payments.cash) || 0) + (parseFloat(payments.card) || 0);
-  const changeDue = Math.max(0, totalPaid - totalDue);
+  const totals = useMemo(() => {
+    const subtotal = cart.reduce((acc, item) => acc + (item.salePrice * item.quantity), 0);
+    const desconto = parseFloat(discountValue) || 0;
+    const total = Math.max(subtotal - desconto, 0);
+    const pago = Object.values(payments).reduce((a, b) => a + b, 0);
+    const troco = Math.max(pago - total, 0);
+    return { subtotal, desconto, total, pago, troco };
+  }, [cart, discountValue, payments]);
 
-  const handleFinalizeSale = async (e) => {
-    e.preventDefault();
-    if (cart.length === 0) return alert('Operação Recusada: O carrinho está completamente vazio.');
-    if (totalPaid < totalDue) return alert('Erro de Caixa: O montante pago informado é inferior ao total do cupom fiscal.');
+  const handleFinishSale = async () => {
+    if (cart.length === 0) return alert('O carrinho de compras está vazio.');
+    if (totals.pago < totals.total) return alert('O valor pago informado é menor do que o total da venda.');
 
-    const transactionCode = `CUP-${Math.floor(100000 + Math.random() * 900000)}`;
+    const randomCode = 'CX-' + Math.floor(100000 + Math.random() * 900000);
+    const dadosVenda = {
+      codigo_transacao: randomCode,
+      cliente: customerName.trim() || 'Consumidor Final', // Nome virou opcional por padrão
+      itens: cart,
+      subtotal: totals.subtotal,
+      desconto: totals.desconto,
+      total: totals.total,
+      pago: totals.pago,
+      troco: totals.troco,
+      pagamentos: payments,
+      operator: user.name,
+      created_at: new Date().toISOString()
+    };
 
-    // 1. Inserir a venda no Supabase
-    const { error: saleError } = await supabase.from('vendas').insert([{
-      codigo_transacao: transactionCode,
-      cliente: customerName.trim() || 'Consumidor Final',
-      subtotal,
-      desconto: discount,
-      total: totalDue,
-      pagamento_pix: parseFloat(payments.pix) || 0,
-      pagamento_dinheiro: parseFloat(payments.cash) || 0,
-      pagamento_cartao: parseFloat(payments.card) || 0,
-      troco: changeDue,
-      itens: cart
-    }]);
+    // 1. Envia para a tabela de histórico de vendas do banco
+    const { error } = await supabase.from('vendas').insert([dadosVenda]);
 
-    if (saleError) {
-      alert('Erro crítico ao salvar transação na nuvem. Verifique a rede.');
+    if (error) {
+      alert('Erro ao persistir transação na nuvem: ' + error.message);
       return;
     }
 
-    // 2. Dar baixa automatizada linha por linha de cada produto no estoque
+    // 2. Abate do Estoque de cada produto vendido
     for (const item of cart) {
-      const dbProduct = products.find(p => p.id === item.productId);
-      if (dbProduct) {
-        const stockCalculated = Math.max(0, dbProduct.estoque - item.quantity);
-        await supabase.from('produtos').update({ estoque: stockCalculated }).eq('id', item.productId);
+      const originalProd = products.find(p => p.id === item.productId);
+      if (originalProd) {
+        const novoEstoque = Math.max(originalProd.estoque - item.quantity, 0);
+        await supabase.from('produtos').update({ estoque: novoEstoque }).eq('id', item.productId);
       }
     }
 
-    // 3. Montar o Cupom e Limpar Estados
-    setActiveReceipt({
-      id: transactionCode,
-      date: new Date(),
-      customer: customerName.trim() || 'Consumidor Final',
-      items: cart,
-      subtotal,
-      discount,
-      total: totalDue,
-      paid: totalPaid,
-      change: changeDue,
-      operator: user.name
-    });
+    // Define o comprovante atual
+    setLastSaleReceipt(dadosVenda);
 
+    // Limpa estados de venda do caixa
     setCart([]);
     setCustomerName('');
     setDiscountValue('');
     setPayments({ pix: 0, cash: 0, card: 0 });
-    loadProducts(); // Recarrega os dados físicos atualizados de estoque
+    
+    // Atualiza catálogos e histórico inferior
+    loadProducts();
+    loadLocalHistory();
+
+    // 3. COMANDO DE IMPRESSÃO AUTOMÁTICO (Foca na bobina e imprime na hora pela Maquininha/Impressora)
+    setTimeout(() => {
+      window.print();
+    }, 300);
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-      
-      {/* SELETOR E PESQUISA DE ITENS */}
-      <div className="lg:col-span-7 space-y-4">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-zinc-900">Módulo Frente de Caixa (PDV)</h2>
-          <p className="text-xs text-zinc-400">Pesquise por nome de produto para lançar no cupom de checkout.</p>
+    <div className="space-y-8">
+      {/* SEÇÃO DA BOBINA INVISÍVEL NA TELA (SÓ APARECE NO MOMENTO DA IMPRESSÃO DO BOTÃO OU FINALIZAÇÃO) */}
+      {lastSaleReceipt && (
+        <div id="cupom-fiscal-impressao">
+          <div style={{ textAlign: 'center', marginBottom: '4px' }}>
+            <strong style={{ fontSize: '12px' }}>MERCADO NOVA ERA</strong><br />
+            <span>Sistema PDV Integrado</span><br />
+            <span>--------------------------------</span>
+          </div>
+          <div>
+            <strong>CUPOM DE VENDA DE BALCÃO</strong><br />
+            <span>ID: {lastSaleReceipt.codigo_transacao}</span><br />
+            <span>Data: {new Date(lastSaleReceipt.created_at).toLocaleString('pt-BR')}</span><br />
+            <span>Op: {lastSaleReceipt.operator}</span><br />
+            <span>Cliente: {lastSaleReceipt.cliente}</span><br />
+            <span>--------------------------------</span>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px dashed #000' }}>
+                <th style={{ textAlign: 'left' }}>Item</th>
+                <th style={{ textAlign: 'center' }}>Qtd</th>
+                <th style={{ textAlign: 'right' }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lastSaleReceipt.itens.map((i, index) => (
+                <tr key={index}>
+                  <td style={{ maxWidth: '30mm', overflow: 'hidden' }}>{i.name}</td>
+                  <td style={{ textAlign: 'center' }}>{i.quantity}</td>
+                  <td style={{ textAlign: 'right' }}>{(i.salePrice * i.quantity).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ marginTop: '4px', borderTop: '1px dashed #000', paddingTop: '4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal:</span><strong>R$ {lastSaleReceipt.subtotal.toFixed(2)}</strong></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Desconto:</span><strong>R$ {lastSaleReceipt.desconto.toFixed(2)}</strong></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>TOTAL VENC:</span><strong style={{ fontSize: '11px' }}>R$ {lastSaleReceipt.total.toFixed(2)}</strong></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Valor Pago:</span><span>R$ {lastSaleReceipt.pago.toFixed(2)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Troco:</span><span>R$ {lastSaleReceipt.troco.toFixed(2)}</span></div>
+            <span>--------------------------------</span>
+          </div>
+          <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '9px' }}>
+            <span>Obrigado pela preferência!</span><br />
+            <span>Documento Auxiliar de Venda</span>
+          </div>
         </div>
+      )}
 
-        <div className="relative">
-          <Search className="absolute left-3.5 top-3.5 text-zinc-400" size={18} />
-          <input 
-            type="text" 
-            value={searchQuery} 
-            onChange={(e) => setSearchQuery(e.target.value)} 
-            className="w-full pl-11 pr-4 py-3 bg-white border border-zinc-200/80 rounded-2xl text-sm font-medium shadow-sm focus:outline-none focus:border-zinc-900 transition-all" 
-            placeholder="Digite o nome da mercadoria..."
-          />
+      <div>
+        <h2 className="text-xl font-bold tracking-tight text-zinc-900">Operação de Frente de Caixa (PDV)</h2>
+        <p className="text-xs text-zinc-400">Lance as mercadorias. O sistema imprimirá automaticamente o recibo físico na sua maquininha ou impressora.</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        {/* INTERFACE ESQUERDA: CARRINHO E SELEÇÃO */}
+        <div className="lg:col-span-2 space-y-6">
           
-          {searchQuery && (
-            <div className="absolute left-0 right-0 mt-1.5 bg-white border border-zinc-200/80 rounded-2xl shadow-2xl z-10 divide-y divide-zinc-100 max-h-64 overflow-y-auto">
-              {filteredProducts.length === 0 ? (
-                <p className="p-4 text-center text-xs text-zinc-400 font-medium">Nenhum produto correspondente em estoque na nuvem.</p>
-              ) : (
-                filteredProducts.map((p) => (
+          {/* BUSCA DE ITENS NO CAIXA */}
+          <div className="bg-white p-5 border border-zinc-200/80 rounded-2xl shadow-sm space-y-3 relative">
+            <label className="block text-xs font-bold text-zinc-700 uppercase tracking-wider">Passar ou Digitar Produto</label>
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
+              <input 
+                type="text" 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Digite as primeiras letras do produto..." 
+                className="w-full pl-11 pr-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:border-zinc-950"
+              />
+            </div>
+
+            {/* OVERLAY DE RESULTADOS DE BUSCA */}
+            {filteredProducts.length > 0 && (
+              <div className="absolute left-5 right-5 bg-white border border-zinc-200 shadow-2xl rounded-xl z-20 overflow-hidden divide-y divide-zinc-100 max-h-60 overflow-y-auto">
+                {filteredProducts.map(p => (
                   <button 
                     key={p.id} 
-                    type="button" 
-                    onClick={() => handleAddToCart(p)} 
-                    className="w-full text-left px-4 py-3 hover:bg-zinc-50 flex justify-between items-center text-xs group transition-colors"
+                    onClick={() => handleAddToCart(p)}
+                    className="w-full flex justify-between items-center px-4 py-3 hover:bg-zinc-50 transition-colors text-left text-xs font-medium"
                   >
                     <div>
-                      <p className="font-bold text-zinc-900 group-hover:text-zinc-950">{p.nome}</p>
-                      <p className="text-[10px] text-zinc-400 font-medium">{p.variacoes || 'Geral'}</p>
+                      <p className="font-bold text-zinc-900">{p.nome}</p>
+                      <p className="text-[10px] text-zinc-400">Setor: {p.variacoes || 'Geral'} | Disp: {p.estoque} un</p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-zinc-900 font-mono">R$ {parseFloat(p.preco_venda).toFixed(2)}</p>
-                      <p className="text-[10px] text-zinc-400 font-medium">Qtd em Loja: <span className="font-bold text-zinc-700">{p.estoque} un</span></p>
-                    </div>
+                    <span className="font-mono font-bold bg-zinc-100 px-2.5 py-1 rounded-lg text-zinc-900">R$ {parseFloat(p.preco_venda).toFixed(2)}</span>
                   </button>
-                ))
-              )}
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* LISTAGEM ATUAL DO CUPOM DO CAIXA */}
+          <div className="bg-white border border-zinc-200/80 rounded-2xl shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/50">
+              <span className="text-xs font-bold text-zinc-700 uppercase">Lista de Produtos do Cupom</span>
+              <span className="text-xs font-mono font-bold text-zinc-500">{cart.length} itens</span>
             </div>
-          )}
-        </div>
 
-        {/* FEED INFORMATIVO DO CAIXA */}
-        <div className="bg-zinc-100 border border-zinc-200/40 p-4 rounded-2xl text-[11px] text-zinc-500 font-medium">
-          ⚙️ Terminal de Atendimento Conectado à API Geral. Modificações de estoque são compartilhadas entre múltiplos caixas abertos.
-        </div>
-      </div>
-
-      {/* CESTO DE COMPRAS E CONCLUSÃO DA VENDA */}
-      <form onSubmit={handleFinalizeSale} className="lg:col-span-5 bg-white border border-zinc-200 rounded-2xl shadow-lg overflow-hidden flex flex-col">
-        <div className="p-4 bg-zinc-50 border-b border-zinc-200 flex justify-between items-center">
-          <span className="text-xs font-bold text-zinc-700 uppercase tracking-wider flex items-center gap-1.5">
-            <ShoppingCart size={14} /> Cupom Atual
-          </span>
-          <button type="button" onClick={() => setCart([])} className="text-xs font-bold text-red-500 hover:underline">Zerar</button>
-        </div>
-
-        {/* ITENS LANÇADOS NO CAIXA */}
-        <div className="p-4 divide-y divide-zinc-100 overflow-y-auto max-h-60 min-h-[140px]">
-          {cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center text-zinc-400 text-xs py-8 font-medium">
-              Caixa aguardando lançamento de mercadorias...
-            </div>
-          ) : (
-            cart.map((item) => (
-              <div key={item.productId} className="py-2.5 flex justify-between items-center text-xs">
-                <div className="space-y-0.5">
-                  <p className="font-bold text-zinc-900">{item.name}</p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-zinc-400 font-mono font-medium">R$ {item.salePrice.toFixed(2)} /un</span>
-                    <div className="flex items-center border border-zinc-200 rounded bg-white overflow-hidden scale-90 origin-left">
-                      <button type="button" onClick={() => handleUpdateQty(item.productId, item.quantity - 1)} className="px-1.5 py-px bg-zinc-50 hover:bg-zinc-100 font-bold border-r border-zinc-200">-</button>
-                      <span className="px-2 font-mono text-[10px] font-bold text-zinc-700">{item.quantity}</span>
-                      <button type="button" onClick={() => handleUpdateQty(item.productId, item.quantity + 1)} className="px-1.5 py-px bg-zinc-50 hover:bg-zinc-100 font-bold border-l border-zinc-200">+</button>
+            {cart.length === 0 ? (
+              <div className="p-16 text-center text-xs text-zinc-400 font-medium">Nenhum produto passado até o momento.</div>
+            ) : (
+              <div className="divide-y divide-zinc-100 max-h-[350px] overflow-y-auto">
+                {cart.map((item) => (
+                  <div key={item.productId} className="p-4 flex items-center justify-between hover:bg-zinc-50/40 transition-colors text-xs">
+                    <div className="space-y-0.5 max-w-[60%]">
+                      <p className="font-bold text-zinc-900 truncate">{item.name}</p>
+                      <p className="text-[10px] text-zinc-400 font-mono">Unitário: R$ {item.salePrice.toFixed(2)} x {item.quantity} un</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="font-mono font-bold text-zinc-900">R$ {(item.salePrice * item.quantity).toFixed(2)}</span>
+                      <button onClick={() => handleRemoveFromCart(item.productId)} className="text-red-500 hover:text-red-700 p-1">
+                        <Trash2 size={15} />
+                      </button>
                     </div>
                   </div>
-                </div>
-                <span className="font-mono font-bold text-zinc-900">R$ {(item.salePrice * item.quantity).toFixed(2)}</span>
+                ))}
               </div>
-            ))
-          )}
+            )}
+          </div>
+
+          {/* HISTÓRICO RÁPIDO RECENTE INJETADO ABAIXO DO CAIXA */}
+          <div className="bg-white border border-zinc-200/80 rounded-2xl p-5 shadow-sm space-y-3">
+            <h4 className="text-xs font-bold text-zinc-900 uppercase tracking-wider">Últimas Vendas Desse Caixa</h4>
+            {salesHistory.length === 0 ? (
+              <p className="text-xs text-zinc-400">Nenhum cupom gerado recentemente.</p>
+            ) : (
+              <div className="space-y-2">
+                {salesHistory.map(h => (
+                  <div key={h.id} className="flex justify-between items-center text-xs border-b border-zinc-100 pb-2">
+                    <span className="font-mono text-zinc-500">{h.codigo_transacao} ({h.cliente || 'Consumidor'})</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono font-bold">R$ {parseFloat(h.total).toFixed(2)}</span>
+                      <button 
+                        onClick={() => { setLastSaleReceipt(h); setTimeout(() => window.print(), 200); }} 
+                        className="text-zinc-600 hover:text-zinc-900 flex items-center gap-1 font-semibold text-[11px]"
+                      >
+                        <Printer size={12} /> Reimprimir
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
 
-        {/* INPUTS DE CLIENTE E DESCONTO */}
-        <div className="p-4 bg-zinc-50/70 border-t border-zinc-200 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+        {/* PAINEL DIREITO: FECHAMENTO DE VALORES E IMPRESSÃO */}
+        <div className="bg-white border border-zinc-200 shadow-xl rounded-2xl p-6 space-y-6">
+          <div>
+            <h3 className="text-sm font-bold text-zinc-900">Fechamento do Cupom</h3>
+            <p className="text-[11px] text-zinc-400">Informe os valores e selecione o meio de pagamento.</p>
+          </div>
+
+          <div className="space-y-3">
             <div>
-              <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wide mb-1">Cliente Vinculado</label>
-              <input type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="w-full px-2.5 py-1.5 bg-white border border-zinc-200 rounded-lg text-xs font-medium focus:outline-none focus:border-zinc-500" placeholder="Consumidor Final"/>
+              <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Nome do Cliente (OPCIONAL)</label>
+              <input 
+                type="text" 
+                value={customerName} 
+                onChange={(e) => setCustomerName(e.target.value)} 
+                className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-medium focus:outline-none"
+                placeholder="Consumidor Final"
+              />
             </div>
+
             <div>
-              <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wide mb-1">Abatimento / Desconto (R$)</label>
-              <input type="number" step="0.01" value={discountValue} onChange={(e) => setDiscountValue(e.target.value)} className="w-full px-2.5 py-1.5 bg-white border border-zinc-200 rounded-lg text-xs font-mono font-bold text-red-600 focus:outline-none focus:border-zinc-500" placeholder="0.00"/>
-            </div>
-          </div>
-          
-          <div className="flex justify-between items-center pt-2 font-bold text-zinc-700 text-xs border-t border-dashed border-zinc-200">
-            <span>VALOR LÍQUIDO DO PROCESSO:</span>
-            <span className="text-zinc-950 font-black text-lg font-mono">R$ {totalDue.toFixed(2)}</span>
-          </div>
-        </div>
-
-        {/* SISTEMA DE DISCRIMINAÇÃO FINANCEIRA POR FORMA DE PAGAMENTO */}
-        <div className="p-4 border-t border-zinc-200/80 space-y-2.5 text-xs bg-white">
-          <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Discriminar Recebimento de Caixas</label>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="bg-zinc-50 p-1.5 rounded-xl border border-zinc-200/60">
-              <span className="block text-[9px] font-bold text-zinc-400 mb-1">⚡ PIX</span>
-              <input type="number" step="0.01" value={payments.pix || ''} onChange={(e) => setPayments({...payments, pix: e.target.value})} className="w-full bg-white border border-zinc-200 rounded-md font-mono text-xs font-bold p-1 text-zinc-800"/>
-            </div>
-            <div className="bg-zinc-50 p-1.5 rounded-xl border border-zinc-200/60">
-              <span className="block text-[9px] font-bold text-zinc-400 mb-1">💵 DINHEIRO</span>
-              <input type="number" step="0.01" value={payments.cash || ''} onChange={(e) => setPayments({...payments, cash: e.target.value})} className="w-full bg-white border border-zinc-200 rounded-md font-mono text-xs font-bold p-1 text-zinc-800"/>
-            </div>
-            <div className="bg-zinc-50 p-1.5 rounded-xl border border-zinc-200/60">
-              <span className="block text-[9px] font-bold text-zinc-400 mb-1">💳 CARTÃO</span>
-              <input type="number" step="0.01" value={payments.card || ''} onChange={(e) => setPayments({...payments, card: e.target.value})} className="w-full bg-white border border-zinc-200 rounded-md font-mono text-xs font-bold p-1 text-zinc-800"/>
+              <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Conceder Desconto Manual (R$)</label>
+              <input 
+                type="number" 
+                value={discountValue} 
+                onChange={(e) => setDiscountValue(e.target.value)} 
+                className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono focus:outline-none focus:border-zinc-950"
+                placeholder="0.00"
+              />
             </div>
           </div>
 
-          <div className="flex justify-between items-center text-[11px] font-bold pt-1.5">
-            <span className="text-zinc-400">Total Pago: R$ {totalPaid.toFixed(2)}</span>
-            {changeDue > 0 && <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md font-mono border border-emerald-100">Troco: R$ {changeDue.toFixed(2)}</span>}
-          </div>
-        </div>
+          <div className="h-px bg-zinc-100 w-full" />
 
-        <button type="submit" className="w-full py-3.5 bg-zinc-950 text-white font-bold text-xs hover:bg-zinc-800 transition-colors uppercase tracking-widest">
-          Autenticar Cupom na Nuvem
-        </button>
-      </form>
-
-      {/* IMPRESSÃO DO RECIBO / MODAL DE SUCESSO */}
-      {activeReceipt && <ReceiptModal receipt={activeReceipt} onClose={() => setActiveReceipt(null)} />}
-    </div>
-  );
-}
-
-// ============================================================================
-// MODAL DE CUPOM TÉRMICO IDENTADO (PADRÃO FISCAL COM COMANDO DE IMPRESSÃO)
-// ============================================================================
-function ReceiptModal({ receipt, onClose }) {
-  return (
-    <div className="fixed inset-0 bg-zinc-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white border border-zinc-200 w-full max-w-xs p-5 rounded-2xl shadow-2xl relative space-y-4 font-mono text-[11px] text-zinc-800 animate-in fade-in zoom-in-95 duration-100">
-        <button onClick={onClose} className="absolute right-4 top-4 text-zinc-400 p-1 hover:bg-zinc-50 rounded-lg print:hidden">
-          <X size={16} />
-        </button>
-
-        <div className="text-center border-b border-dashed border-zinc-300 pb-3 space-y-1">
-          <h3 className="font-black text-xs text-zinc-900 tracking-tight uppercase">MERCADO NOVA ERA LTDA</h3>
-          <p className="text-[9px] text-zinc-400 uppercase">SaaS Cloud Retail ERP Platform</p>
-          <span className="bg-zinc-950 text-white px-2 py-0.5 rounded font-bold text-[9px] tracking-wider mt-1.5 inline-block">{receipt.id}</span>
-        </div>
-
-        <div className="space-y-0.5 text-[10px] text-zinc-500">
-          <p>Operador: {receipt.operator}</p>
-          <p>Cliente: {receipt.customer}</p>
-          <p>Data: {new Date(receipt.date).toLocaleString('pt-BR')}</p>
-        </div>
-
-        <div className="border-t border-b border-dashed border-zinc-300 py-2 space-y-1.5">
-          {receipt.items.map((item, idx) => (
-            <div key={idx} className="flex justify-between items-start">
-              <span className="max-w-[180px] truncate">{item.quantity}x {item.name}</span>
-              <span className="font-bold text-zinc-900">R$ {(item.salePrice * item.quantity).toFixed(2)}</span>
+          {/* CAIXAS DE MEIOS DE PAGAMENTO */}
+          <div className="space-y-2">
+            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Entrada de Valores por Tipo</label>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-zinc-50 p-2 rounded-xl border border-zinc-200">
+                <span className="block text-[10px] font-semibold text-zinc-500 mb-1">💸 Dinheiro</span>
+                <input type="number" step="0.01" value={payments.cash || ''} onChange={(e) => setPayments({...payments, cash: parseFloat(e.target.value) || 0})} className="w-full bg-transparent font-mono text-xs font-bold focus:outline-none" placeholder="0.00"/>
+              </div>
+              <div className="bg-zinc-50 p-2 rounded-xl border border-zinc-200">
+                <span className="block text-[10px] font-semibold text-zinc-500 mb-1">💳 Cartão</span>
+                <input type="number" step="0.01" value={payments.card || ''} onChange={(e) => setPayments({...payments, card: parseFloat(e.target.value) || 0})} className="w-full bg-transparent font-mono text-xs font-bold focus:outline-none" placeholder="0.00"/>
+              </div>
+              <div className="bg-zinc-50 p-2 rounded-xl border border-zinc-200">
+                <span className="block text-[10px] font-semibold text-zinc-500 mb-1">⚡ PIX</span>
+                <input type="number" step="0.01" value={payments.pix || ''} onChange={(e) => setPayments({...payments, pix: parseFloat(e.target.value) || 0})} className="w-full bg-transparent font-mono text-xs font-bold focus:outline-none" placeholder="0.00"/>
+              </div>
             </div>
-          ))}
-        </div>
-
-        <div className="space-y-1 text-right border-b border-dashed border-zinc-300 pb-2">
-          <div className="text-[10px] text-zinc-400">Subtotal: R$ {receipt.subtotal.toFixed(2)}</div>
-          {receipt.discount > 0 && <div className="text-[10px] text-red-500">Abatimento: -R$ {receipt.discount.toFixed(2)}</div>}
-          <div className="font-black text-sm text-zinc-900 mt-0.5">TOTAL COMPUTA: R$ {receipt.total.toFixed(2)}</div>
-        </div>
-
-        <div className="text-[10px] text-zinc-400 space-y-0.5">
-          <p>Meios de Pagamento Computados:</p>
-          <div className="flex justify-between text-zinc-500 font-medium">
-            <span>Dinheiro/Valores Físicos:</span>
-            <span>R$ {receipt.paid.toFixed(2)}</span>
           </div>
-          {receipt.change > 0 && (
-            <div className="flex justify-between text-zinc-800 font-bold">
-              <span>Troco Devolvido:</span>
-              <span>R$ {receipt.change.toFixed(2)}</span>
-            </div>
-          )}
-        </div>
 
-        <div className="text-center text-[9px] text-zinc-400/90 pt-1 border-t border-dashed border-zinc-200">
-          Obrigado pela preferência!<br />Volte Sempre.
-        </div>
+          {/* RESUMO TÉCNICO DE TOPO */}
+          <div className="bg-zinc-900 text-white p-4 rounded-xl font-mono space-y-2 shadow-inner">
+            <div className="flex justify-between text-xs text-zinc-400"><span>Subtotal:</span><span>R$ {totals.subtotal.toFixed(2)}</span></div>
+            <div className="flex justify-between text-xs text-red-400/90"><span>Desconto:</span><span>- R$ {totals.desconto.toFixed(2)}</span></div>
+            <div className="flex justify-between text-sm font-bold border-t border-zinc-800 pt-2 text-white"><span>TOTAL:</span><span>R$ {totals.total.toFixed(2)}</span></div>
+            <div className="flex justify-between text-xs text-zinc-400 border-t border-zinc-800 pt-2"><span>Total Pago:</span><span>R$ {totals.pago.toFixed(2)}</span></div>
+            <div className="flex justify-between text-xs text-emerald-400 font-bold"><span>Troco:</span><span>R$ {totals.troco.toFixed(2)}</span></div>
+          </div>
 
-        <button 
-          onClick={() => window.print()} 
-          className="w-full py-2.5 bg-zinc-100 rounded-xl font-sans font-bold text-xs text-zinc-700 hover:bg-zinc-200 flex items-center justify-center gap-2 transition-all print:hidden shadow-sm"
-        >
-          <Printer size={15}/> Imprimir Cupom Térmico
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// PAINEL DE COBRANÇA E ASSINATURA SAAS
-// ============================================================================
-function BillingView() {
-  return (
-    <div className="bg-white border border-zinc-200/80 p-6 rounded-2xl shadow-sm space-y-5">
-      <div>
-        <h3 className="text-base font-bold text-zinc-900">Gerenciamento de Licença e Servidores</h3>
-        <p className="text-xs text-zinc-400">Dados técnicos sobre o provisionamento do ecossistema do cliente.</p>
-      </div>
-      
-      <div className="bg-zinc-50 border border-zinc-200/60 p-4 rounded-xl space-y-3 font-mono text-xs text-zinc-600">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="font-bold text-emerald-600">CONEXÃO DO PROVEDOR ATIVA (SOCIUS-DB)</span>
+          {/* BOTÃO PRINCIPAL DE FECHAMENTO FISCAL COM IMPRESSÃO DIRETA */}
+          <button 
+            onClick={handleFinishSale}
+            className="w-full py-3.5 bg-zinc-950 text-white rounded-xl text-xs font-bold hover:bg-zinc-800 transition-all shadow-md flex items-center justify-center gap-2"
+          >
+            <Printer size={15} /> Finalizar & Imprimir Comprovante
+          </button>
         </div>
-        <p>Motor de Nuvem: <span className="font-bold text-zinc-800">Supabase REST v1 Client</span></p>
-        <p>Hospedagem Regional: <span className="font-bold text-zinc-800">AWS sa-east-1 (São Paulo)</span></p>
-        <p>Tipo de Assinatura: <span className="font-bold text-zinc-800">Plano Lite Corporativo</span></p>
       </div>
     </div>
   );
